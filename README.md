@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="icon.png" width="140" alt="seidr">
-</p>
-
 # seidr — VCR / super-integron detection on a de Bruijn graph
 
 *Old Norse **seiðr**: the craft of seeing what is hidden.*
