@@ -1,0 +1,14 @@
+# dependencies & build outputs (rebuilt by the scripts)
+/megahit/
+/deps/
+/build/
+*.o
+*.obj
+*.exe
+
+# generated data / logs
+*.fa
+*.log
+
+# scratch
+_*
