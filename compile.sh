@@ -8,8 +8,8 @@ B="$HERE/build"; mkdir -p "$B"
 MHSRC="$HERE/megahit/src"
 SDBG_SRC="$MHSRC/sdbg/sdbg_meta.cpp $MHSRC/sdbg/sdbg_raw_content.cpp"
 
-for tool in vcr_traverse vcr_anchor sdbg_load_test; do
+for tool in vcr_traverse vcr_array vcr_anchor sdbg_load_test; do
   echo "[compile] $tool"
   g++ -O2 -std=c++17 -I "$MHSRC" "$HERE/$tool.cpp" $SDBG_SRC -lpthread -o "$B/$tool"
 done
-echo "[compile] done -> $B/{vcr_traverse,vcr_anchor,sdbg_load_test}"
+echo "[compile] done -> $B/{vcr_traverse,vcr_array,vcr_anchor,sdbg_load_test}"

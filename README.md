@@ -48,5 +48,17 @@ bash run.sh              # 5. detect on the SDBG + validate with cmsearch
 | `cm_to_profile.py` | CM → linear per-position profile |
 | `sdbg_gen.py` | synthetic super-integron generator |
 | `vcr_anchor.cpp` | anchors: in-degree ≥ 2 + upstream STOP |
-| `vcr_traverse.cpp` | anchors → greedy CM-profile walk → candidates |
+| `vcr_traverse.cpp` | anchors → greedy CM-profile walk → VCR candidates |
+| `vcr_array.cpp` | VCR → START (ATG) → bounded beam ORF crossing → cassettes (PLAN.md §9) |
 | `PLAN.md` | the method, in full |
+
+## Tests (recovery vs planted ground truth)
+
+```bash
+bash test_orf.sh       # ORF crossing across seeds & cassette counts (6..50); byte-identical check
+bash test_reject.sh    # §9.3 length gate: out-of-[210,1200] ORFs are rejected
+```
+
+Both compare recovered ORFs to the planted `build/truth.txt` byte-for-byte
+(`check_orf.py` / `check_reject.py`) and print `OK`/`FAIL`. Verified status and the
+remaining untested cases are in **[PLAN.md](PLAN.md)** ("Honest status").

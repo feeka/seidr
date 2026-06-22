@@ -198,6 +198,62 @@ the detector.
 
 ---
 
+## 9. Cassette/ORF crossing — bounded beam traversal between VCRs (LOCKED SPEC)
+
+Confirmed by the project lead (2026-06-22). This is the **gene step**, run after a
+VCR is detected. **Problem class: bounded START→STOP beam traversal — NOT cycle
+enumeration.** (The VCR collapses to one high-multiplicity hub; enumerating cycles
+through it explodes combinatorially and most cycles are spurious repeat-induced
+pairings. A bounded *local* beam from each START is feasible: cost ≈ width × depth,
+independent of the whole-graph size.)
+
+**9.1 Array bound.** A cassette array has **2–300 genes**. Accept only arrays whose
+recovered cassette count is in **[2, 300]**; reject otherwise. (Literature: mobile
+integrons 1–8 cassettes; Vibrio super-integrons up to ~300; N16961 ≈ 166 ORFs /
+179 cassettes.)
+
+**9.2 START.** After a detected VCR, find the cassette START codon **`ATG` within
+±50 nodes** downstream of the VCR end. That `ATG` fixes the reading frame. The
+recovered ORF includes the `ATG`.
+
+**9.3 ORF crossing.** From the START, walk forward:
+- length window **[210, 1200] bp** (`ATG`→`STOP`; the ORF only, not ORF+attC);
+- a path is **valid only if an in-frame STOP is reached inside the window**:
+  STOP before 210 bp → **discard**; reach 1200 bp with no STOP → **discard**.
+- (Literature bounds: 210 bp ≈ the 70-aa "real ORF" floor below which cassettes
+  are gene-less; 1200 bp ≈ the largest N16961 cassette ORF, VCA0308 = 1209 bp.)
+
+**9.4 Beam.** Keep the **top 2000** partial paths, ranked by
+**moving-average multiplicity-consistency + stop legality**:
+- *multiplicity consistency:* prefer the successor whose `EdgeMultiplicity` stays
+  closest to the path's **running average** multiplicity (penalty = `|mult − avg|`,
+  accumulated; lower is better). Rationale: uniform depth ⇒ one true contiguous
+  cassette path holds ~constant coverage; a jump signals leaving the cassette.
+- *stop legality:* a path placing an in-frame STOP **before** 210 bp is illegal
+  (discard); a path is **complete** when it places one in **[210, 1200]**.
+- **[implementation reading — flagged, per rule 2]** multiplicity is scored as the
+  negative running deviation; stop legality is a **hard gate**, not a soft score.
+  Correct me if you meant a soft stop term in the ranking.
+
+**9.5 Cycle rule.** If a path revisits an already-visited node `N`
+(e.g. `1→2→3→4→5→3`), it may leave `N` by a *different* edge only if
+**outdegree(`N`) ≥ 2**; otherwise **discard the path**.
+
+**9.6 Geometry.** Codon/aa: 3 bp per step, in the frame fixed by 9.2.
+
+### 9.7 ORF test plan (against planted ground truth)
+
+1. Plant **distinct** ORFs (each `ATG` … in-frame … `STOP`, length in [210,1200])
+   between **identical** VCRs: `flank + VCR + (ORF_i + VCR)×N + flank`.
+2. Write every planted ORF sequence to `truth.txt` (`orf<i>\t<seq>`).
+3. Build the SDBG, detect VCRs, run 9.2–9.5 from each VCR.
+4. **Check vs ground truth:** the recovered ORF set must equal the planted ORF set
+   **byte-for-byte**. Report the actual count recovered / planted and any mismatch
+   first, before any success claim. This is the divergent/distinct-cassette case —
+   the real test of whether the beam stays on one cassette at the VCR fan-out.
+
+---
+
 ## Decisions I need from you before coding (so I don't substitute my own choices)
 
 1. **Profile (Step 4):** nucleotide profile built from VCR instances, or the
@@ -215,11 +271,28 @@ the detector.
 
 ## Honest status (facts, not claims)
 
-- Not implemented yet against this plan.
-- The earlier prototype (`vcr_graph.cpp`) did **not** follow this plan: it used a
-  custom hash-map graph (not the SDBG), added a wrong "anchor begins with a stop"
-  check, and used a beam search (not greedy) — which produced chimeras. Verified
-  failure: 0/8 planted copies recovered at ≥90 % identity.
-- Whether the greedy SDBG method in this plan recovers divergent copies cleanly
-  is **unverified** — it will be tested against planted ground truth (Step 8.5)
-  before any success claim.
+**Implemented:** VCR detection (`vcr_traverse.cpp`) and the §9 ORF crossing
+(`vcr_array.cpp`). The ORF traversal navigates by **k-mer membership**
+(`IndexBinarySearch`), not `OutgoingEdges` on a single edge-row — the latter only
+follows one lineage at a fork in the succinct DBG and misses sibling branches.
+
+**Verified against planted ground truth (synthetic, identical VCRs):**
+- VCR: recovered **byte-identical** to the planted VCR; `cmsearch` E = 7e-35.
+- ORF crossing, in-range: 8 datasets (seeds 1–5 ×6 cassettes; ×12; ×20; ×50) —
+  **every planted ORF recovered byte-identical, 0 false positives** (`test_orf.sh`).
+- §9.3 length gate: with cassettes spanning 177–1485 bp, the 4 out-of-[210,1200]
+  ones are **rejected** and all 20 in-range recovered, 0 leaks (`test_reject.sh`).
+
+**NOT yet verified (do not claim these work):**
+- **Divergent VCR copies** — all tests use identical VCRs (the clean-collapse case).
+- **Cassettes that share sub-sequences** (paralogs) — would create forks where the
+  beam could chimerize; the synthetic ORFs are random/distinct, so untested.
+- **Array bound [2,300] boundary rejection** (counts tested were 6–50, in range).
+- **Cycle rule (§9.5)** — no cycles arise in the distinct-ORF synthetic, so the
+  rule is implemented but unexercised.
+- **Real metagenomic conditions** — uneven coverage, sequencing errors, strain mix.
+- **Scaling** — the beam copies a per-path visited-set on each branch (O(path len));
+  fine for tests, needs a persistent/immutable set for billion-node graphs.
+
+**Superseded:** the old `vcr_graph.cpp` prototype (custom hash-map graph, wrong
+anchor check, beam-not-greedy → chimeras, 0/8 recovered) has been removed.
